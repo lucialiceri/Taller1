@@ -1,7 +1,7 @@
 use std::env;
-
-use crate::bomberman::{cargar_laberinto, detonar_bomba, imprimir_laberinto, guardar_laberinto_en_archivo};
+use crate::bomberman::{cargar_laberinto, detonar_bomba, guardar_laberinto_en_archivo};
 mod bomberman;
+mod tests;
 
 
 fn main() {
@@ -26,7 +26,7 @@ fn main() {
                 }
             };
             detonar_bomba(&mut laberinto, x, y);
-            imprimir_laberinto(&laberinto);
+
             match guardar_laberinto_en_archivo(&laberinto, &args[2]) {
                 Ok(_) => println!("Laberinto guardado en {}", &args[2]),
                 Err(e) => eprintln!("Error al guardar el laberinto: {}", e),

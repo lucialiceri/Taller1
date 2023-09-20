@@ -1,8 +1,6 @@
-use std::error::{Error, self};
-//use std::fmt::Error;
 use std::fs::File;
 use std::io::{self};
-use std::io::{BufRead, Lines, BufReader};
+use std::io::{BufRead, BufReader};
 use std::io::{Result, Write};
 
 
@@ -24,16 +22,16 @@ pub enum Direccion{
   Abajo,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Celda{
    pub objeto: Objeto,
    pub x: usize,
    pub y: usize,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Laberinto{
-  tamano: usize,
+  pub tamano: usize,
   pub grid: Vec<Vec<Celda>>
 }
 
@@ -128,6 +126,54 @@ fn eliminar_espacios(linea: String) -> String {
     linea.chars().filter(|c| !c.is_whitespace()).collect::<String>()
 }
 
+/// Carga un laberinto desde un archivo de texto y lo representa como una estructura de datos.
+///
+/// Esta función toma la ruta de un archivo de texto como entrada y carga el contenido del
+/// archivo en un laberinto, representado como una estructura de datos `Laberinto`. El archivo
+/// debe contener una representación textual del laberinto, donde cada carácter representa un
+/// objeto en una celda del laberinto. Los objetos posibles incluyen enemigos, bombas, rocas,
+/// paredes, desvíos y celdas vacías.
+///
+/// # Argumentos
+///
+/// - `path`: La ruta del archivo de texto que contiene el laberinto.
+///
+/// # Errores
+///
+/// Esta función puede devolver un error si ocurren problemas al abrir o leer el archivo.
+///
+/// # Ejemplo
+///
+/// ```rust
+/// use laberinto::{cargar_laberinto, Laberinto};
+///
+/// let laberinto = cargar_laberinto("laberinto.txt");
+///
+/// match laberinto {
+///     Ok(l) => {
+///         println!("Laberinto cargado con éxito.");
+///         // Realizar operaciones con el laberinto cargado
+///     }
+///     Err(e) => {
+///         eprintln!("Error al cargar el laberinto: {:?}", e);
+///     }
+/// }
+/// ```
+///
+/// # Notas
+///
+/// - El archivo de entrada debe tener un formato específico donde cada línea representa una fila
+///   del laberinto y cada carácter en una línea representa un objeto en una celda.
+/// - La función realiza una validación del tamaño del laberinto verificando que todas las filas
+///   tengan la misma longitud.
+///
+/// # Devoluciones
+///
+/// - `Ok(Laberinto)`: Un resultado que contiene el laberinto cargado como una estructura `Laberinto`
+///   si se realizó con éxito.
+/// - `Err(std::io::Error)`: Un error que indica un problema al abrir o leer el archivo.
+///
+
 pub fn cargar_laberinto(path: &str) -> Result<Laberinto> {
     let lineas = leer_lineas(path)?;
     let mut laberinto = Laberinto {
@@ -184,7 +230,44 @@ fn obtener_direccion_del_desvio(celda: &Celda) -> Option<(i32, i32)> {
         None
     }
 }
-
+/// Detona una bomba en el laberinto y causa una explosión.
+///
+/// Esta función permite detonar una bomba en las coordenadas `(x, y)` del laberinto.
+/// La explosión se propaga en cuatro direcciones: izquierda, derecha, arriba y abajo.
+/// El alcance de la explosión está determinado por la potencia de la bomba, que puede ser de
+/// dos tipos: bomba normal o bomba de traspaso. Si una bomba de traspaso alcanza una pared o
+/// una roca, seguirá explotando al otro lado.
+///
+/// El laberinto se modifica como resultado de la explosión. Los enemigos y objetos cercanos
+/// pueden ser destruidos o afectados por la explosión.
+///
+/// # Argumentos
+///
+/// - `laberinto`: Una referencia mutable al laberinto en el que se va a detonar la bomba.
+/// - `x`: La coordenada X en la que se va a detonar la bomba.
+/// - `y`: La coordenada Y en la que se va a detonar la bomba.
+///
+/// # Ejemplo
+///
+/// ```rust
+/// use laberinto::{detonar_bomba, cargar_laberinto, Laberinto};
+///
+/// let mut laberinto = cargar_laberinto("laberinto.txt").expect("Error al cargar el laberinto");
+///
+/// // Detonar una bomba en la coordenada (4, 2) del laberinto
+/// detonar_bomba(&mut laberinto, 4, 2);
+///
+/// // El laberinto ha sido modificado después de la explosión.
+/// ```
+///
+/// # Notas
+///
+/// - Si las coordenadas `(x, y)` están fuera de los límites del laberinto, la función
+///   imprimirá un mensaje de advertencia y no realizará ninguna acción.
+/// - La explosión afecta a las celdas adyacentes dentro del alcance de la bomba.
+/// - Las celdas afectadas por la explosión pueden cambiar su contenido, destruyendo enemigos
+///   y objetos.
+///
 pub fn detonar_bomba(laberinto: &mut Laberinto, x: usize, y: usize) {
     if x >= laberinto.tamano || y >= laberinto.tamano {
         println!("Fuera de los parametros del laberinto\n");
@@ -222,7 +305,7 @@ fn detonar_bomba_recursive(
     for &(mut dx, mut dy) in &[(1, 0), (-1, 0), (0, 1), (0, -1)] {
         let mut new_x = x;
         let mut new_y = y;
-        for n in 1..=alcance {
+        for _n in 1..=alcance {
 
             new_x = new_x.wrapping_add((dx as i32) as usize);
             new_y = new_y.wrapping_add((dy as i32) as usize);
@@ -270,44 +353,52 @@ fn detonar_bomba_recursive(
     }
 }
 
-pub fn imprimir_laberinto(laberinto: &Laberinto) {
-    for fila in &laberinto.grid {
-        for celda in fila {
-            match &celda.objeto {
-                Objeto::Enemigo(vidas) => {
-                    print!("F{} ", vidas);
-                }
-                Objeto::Bomba(alcance) => {
-                    print!("B{} ", alcance);
-                }
-                Objeto::BombaTraspaso(alcance) => {
-                    print!("S{}) ", alcance);
-                }
-                Objeto::Roca => {
-                    print!("R ");
-                }
-                Objeto::Pared => {
-                    print!("W ");
-                }
-                Objeto::Desvio(direccion) => {
-                    let dir_str = match direccion {
-                        Direccion::Izquierda => "L",
-                        Direccion::Derecha => "R",
-                        Direccion::Arriba => "U",
-                        Direccion::Abajo => "D",
-                    };
-                    print!("D{} ", dir_str);
-                }
-                Objeto::Vacio => {
-                    print!("_ ");
-                }
-            }
-        }
-        println!(); // Nueva línea para la siguiente fila
-    }
-}
-
-
+/// Guarda un laberinto en un archivo de texto.
+///
+/// Esta función toma un laberinto y lo guarda en un archivo de texto especificado.
+/// Cada celda del laberinto se representa en el archivo como un carácter según el tipo de objeto
+/// que contiene. Los objetos se representan de la siguiente manera:
+///
+/// - Enemigo: 'F' seguido del número de vidas.
+/// - Bomba: 'B' seguido del alcance.
+/// - Bomba de Traspaso: 'S' seguido del alcance.
+/// - Roca: 'R'.
+/// - Pared: 'W'.
+/// - Desvío: 'D' seguido de la dirección ('L', 'R', 'U', 'D').
+/// - Vacío: '_'.
+///
+/// Cada fila del laberinto se representa como una línea en el archivo, y los objetos de cada fila
+/// se separan por espacios.
+///
+/// # Argumentos
+///
+/// - `laberinto`: Una referencia al laberinto que se va a guardar.
+/// - `archivo_salida`: El nombre del archivo de texto en el que se guardará el laberinto.
+///
+/// # Ejemplo
+///
+/// ```
+/// use laberinto::{guardar_laberinto_en_archivo, cargar_laberinto, Laberinto};
+///
+/// // Cargar un laberinto desde un archivo
+/// let mut laberinto = cargar_laberinto("laberinto.txt").expect("Error al cargar el laberinto");
+///
+/// // Realizar operaciones en el laberinto, como detonar bombas o mover personajes.
+///
+/// // Guardar el laberinto modificado en un archivo de texto
+/// guardar_laberinto_en_archivo(&laberinto, "laberinto_modificado.txt").expect("Error al guardar el laberinto");
+/// ```
+///
+/// # Errores
+///
+/// Esta función retorna un `Result` que puede contener un error si no se puede abrir o escribir en
+/// el archivo especificado.
+///
+/// # Notas
+///
+/// - Si el archivo de salida no existe, se creará automáticamente.
+/// - Cada fila en el archivo de salida se termina con un salto de línea '\n'.
+///
 pub fn guardar_laberinto_en_archivo(laberinto: &Laberinto, archivo_salida: &str) -> Result<()> {
     // Abre el archivo de salida para escritura, creándolo si no existe.
     let mut archivo = File::create(archivo_salida)?;
@@ -360,74 +451,91 @@ mod tests {
         let linea_limpia = eliminar_espacios(linea);
         assert_eq!(linea_limpia, "ABC1DE2");
     }
-
     #[test]
-    fn test_cargar_laberinto() {
-        // Crea un archivo de ejemplo en tiempo de ejecución con el contenido que deseas
-        // y obtén su ruta
-        let contenido = "\
-            B2 R R _ F1 _ _\n\
-            _ W R W _ W _\n\
-            B5 _ _ _ B2 _ _\n\
-            _ W _ W _ W _\n\
-            _ _ _ _ _ _ _\n\
-            _ W _ W _ W _\n\
-            _ _ _ _ _ _ _\n";
-        
-        let ruta = "laberinto.txt";
-        
-        std::fs::write(ruta, contenido).expect("No se pudo crear el archivo de prueba");
-        
-        // Llama a la función cargar_laberinto y verifica el resultado
-        match cargar_laberinto(ruta) {
-            Ok(laberinto) => {
-                assert_eq!(laberinto.tamano, 7); // Verifica el tamaño esperado
-                let primer_elemento = &laberinto.grid[0][0].objeto;
-                assert_eq!(primer_elemento, &Objeto::Bomba(2))
-                // Realiza más aserciones según tus necesidades
-            }
-            Err(e) => {
-                // En caso de error, imprime el error para la depuración
-                eprintln!("Error al cargar el laberinto: {:?}", e);
-                assert!(false); // Indica que la prueba ha fallado
-            }
-        }
-        
-        // Limpia el archivo de prueba después de usarlo
-        std::fs::remove_file(ruta).expect("No se pudo eliminar el archivo de prueba");
+    fn test_quitar_vida_a_enemigo() {
+        // Crea una celda con un enemigo
+        let mut celda = Celda {
+            objeto: Objeto::Enemigo(3),
+            x: 1,
+            y: 1, // Un enemigo con 3 vidas
+        };
+
+        // Llama a la función para detonar la celda
+        quitar_vida_enemigo(&mut celda);
+
+        // Verifica que el enemigo haya perdido una vida
+        assert!(matches!(celda.objeto, Objeto::Enemigo(2)));
     }
 
     #[test]
-    fn test_detonar_bomba(){
-        let contenido = "\
-            B2 R R _ F1 _ _\n\
-            _ W R W _ W _\n\
-            B5 _ _ _ B2 _ _\n\
-            _ W _ W _ W _\n\
-            _ _ _ _ _ _ _\n\
-            _ W _ W _ W _\n\
-            _ _ _ _ _ _ _\n";
-        
-        let ruta = "laberinto.txt";
-        
-        std::fs::write(ruta, contenido).expect("No se pudo crear el archivo de prueba");
-        
-        // Llama a la función cargar_laberinto y verifica el resultado
-        match cargar_laberinto(ruta){
-            Ok(mut laberinto) => {
-                detonar_bomba(&mut laberinto, 4, 2);
-                let bomba = &laberinto.grid[2][4].objeto;
-                let enemigo = &laberinto.grid[0][4].objeto;
-                assert_eq!(bomba, &Objeto::Vacio);
-                assert_eq!(enemigo, &Objeto::Vacio);
-            }
-            Err(e) => {
-                eprintln!("Error al cargar el laberinto: {:?}", e);
-                assert!(false);
-            }
-        }
-        
-
-
+    fn test_cargar_objeto() {
+        // Prueba para cargar diferentes objetos
+        assert_eq!(cargar_objeto('F', &mut "3".chars().peekable()), Objeto::Enemigo(3));
+        assert_eq!(cargar_objeto('B', &mut "2".chars().peekable()), Objeto::Bomba(2));
+        assert_eq!(cargar_objeto('S', &mut "1".chars().peekable()), Objeto::BombaTraspaso(1));
+        assert_eq!(cargar_objeto('R', &mut "".chars().peekable()), Objeto::Roca);
+        assert_eq!(cargar_objeto('W', &mut "".chars().peekable()), Objeto::Pared);
+        assert_eq!(cargar_objeto('D', &mut "R".chars().peekable()), Objeto::Desvio(Direccion::Derecha));
+        assert_eq!(cargar_objeto('_', &mut "".chars().peekable()), Objeto::Vacio);
     }
+
+    #[test]
+    fn test_parsear_entero() {
+        // Prueba para parsear enteros de una cadena
+        assert_eq!(parsear_entero(&mut "123".chars().peekable(), 0), 123);
+        assert_eq!(parsear_entero(&mut "42abc".chars().peekable(), 0), 42);
+        assert_eq!(parsear_entero(&mut "abc".chars().peekable(), 10), 10); // El valor por defecto se usa en caso de error
+    }
+
+    #[test]
+    fn test_parsear_direccion() {
+        // Prueba para parsear direcciones de una cadena
+        assert_eq!(parsear_direccion(&mut "LRU".chars().peekable(), Direccion::Abajo), Direccion::Izquierda);
+        assert_eq!(parsear_direccion(&mut "R".chars().peekable(), Direccion::Arriba), Direccion::Derecha);
+        assert_eq!(parsear_direccion(&mut "XYZ".chars().peekable(), Direccion::Izquierda), Direccion::Izquierda);
+    }
+
+    #[test]
+    fn test_cargar_laberinto_desde_linea() {
+        // Prueba para cargar un laberinto desde una cadena de línea
+        let linea = "_WF5B1_".to_string();
+        let fila = cargar_laberinto_desde_linea(&linea, 0);
+
+        assert_eq!(
+            fila,
+            vec![
+                Celda { objeto: Objeto::Vacio, x: 0, y: 0 },
+                Celda { objeto: Objeto::Pared, x: 1, y: 0 },
+                Celda { objeto: Objeto::Enemigo(5), x: 2, y: 0 },
+                Celda { objeto: Objeto::Bomba(1), x: 3, y: 0 },
+                Celda { objeto: Objeto::Vacio, x: 4, y: 0 },
+            ]
+        );
+    }
+    #[test]
+    fn test_obtener_direccion_del_desvio() {
+        // Prueba para obtener dirección de desvío desde una celda
+        let celda_con_desvio = Celda {
+            objeto: Objeto::Desvio(Direccion::Arriba),
+            x: 1,
+            y: 1,
+        };
+
+        let celda_sin_desvio = Celda {
+            objeto: Objeto::Pared,
+            x: 2,
+            y: 2,
+        };
+
+        assert_eq!(
+            obtener_direccion_del_desvio(&celda_con_desvio),
+            Some((0, -1)) // Debería ser una dirección hacia arriba
+        );
+
+        assert_eq!(
+            obtener_direccion_del_desvio(&celda_sin_desvio),
+            None // No debería haber dirección de desvío
+        );
+    }
+   
 }
