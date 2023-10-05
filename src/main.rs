@@ -1,4 +1,4 @@
-use crate::bomberman::{detonar_bomba, guardar_laberinto_en_archivo};
+use crate::bomberman::{detonar_bomba, escribir_error_en_archivo, guardar_laberinto_en_archivo};
 use bomberman::model::laberinto::Laberinto;
 use std::env;
 mod bomberman;
@@ -48,18 +48,5 @@ fn main() {
         println!("El laberinto dio error");
         escribir_error_en_archivo(&args[2], "El laberinto dio error");
         process::exit(1); // Salir del programa con un código de salida no cero
-    }
-}
-
-fn escribir_error_en_archivo(archivo: &str, mensaje: &str) {
-    use std::fs::File;
-    use std::io::Write;
-
-    if let Ok(mut archivo_error) = File::create(archivo) {
-        if let Err(e) = writeln!(archivo_error, "ERROR: {}", mensaje) {
-            eprintln!("Error al escribir el mensaje de error en el archivo: {}", e);
-        }
-    } else {
-        eprintln!("Error al crear el archivo de error");
     }
 }

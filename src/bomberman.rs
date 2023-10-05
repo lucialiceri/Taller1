@@ -93,16 +93,7 @@ pub fn detonar_bomba(laberinto: &mut Laberinto, x: usize, y: usize) {
 
     match objeto {
         Objeto::Bomba(alcance) | Objeto::BombaTraspaso(alcance) => {
-            let mut visited = vec![vec![false; laberinto.tamano]; laberinto.tamano];
-            visited[y][x] = true;
-
-            detonar_bomba_recursive(
-                laberinto,
-                x,
-                y,
-                *alcance,
-                es_bomba_de_traspaso,
-            );
+            detonar_bomba_recursive(laberinto, x, y, *alcance, es_bomba_de_traspaso);
         }
         _ => return, // No es una bomba, no hacemos nada
     }
@@ -116,6 +107,7 @@ fn detonar_bomba_recursive(
     alcance: i32,
     es_bomba_de_traspaso: bool,
 ) {
+    laberinto.grid[y][x].objeto = Objeto::Vacio;
     let mut visited = vec![vec![false; laberinto.tamano]; laberinto.tamano];
     visited[y][x] = true;
     for &(mut dx, mut dy) in &[(1, 0), (-1, 0), (0, 1), (0, -1)] {
@@ -146,11 +138,6 @@ fn detonar_bomba_recursive(
             }
             if !visited[new_y][new_x] {
                 quitar_vida_enemigo(&mut laberinto.grid[new_y][new_x]);
-            }
-            
-            if let Objeto::Enemigo(_vidas) = laberinto.grid[new_y][new_x].objeto {
-                visited[new_y][new_x] = true; // Quiero que vuelva a visitarla por si hay un enemigo
-            } else {
                 visited[new_y][new_x] = true;
             }
 
@@ -339,6 +326,16 @@ pub fn guardar_laberinto_en_archivo(
     }
 
     Ok(())
+}
+
+pub fn escribir_error_en_archivo(archivo: &str, mensaje: &str) {
+    if let Ok(mut archivo_error) = File::create(archivo) {
+        if let Err(e) = writeln!(archivo_error, "ERROR: {}", mensaje) {
+            eprintln!("Error al escribir el mensaje de error en el archivo: {}", e);
+        }
+    } else {
+        eprintln!("Error al crear el archivo de error");
+    }
 }
 
 #[cfg(test)]
