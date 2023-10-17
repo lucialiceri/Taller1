@@ -80,10 +80,14 @@ fn obtener_direccion_del_desvio(celda: &Celda) -> Option<(i32, i32)> {
 /// Para verificar posibles errores, es importante verificar el estado del laberinto después
 /// de llamar a esta función.
 
-pub fn detonar_bomba(laberinto: &mut Laberinto, x: usize, y: usize) {
+pub fn detonar_bomba(
+    laberinto: &mut Laberinto,
+    x: usize,
+    y: usize,
+) -> Result<(), io::Error> {
     if x >= laberinto.tamano || y >= laberinto.tamano {
-        println!("Fuera de los parametros del laberinto\n");
-        return;
+        println!("Fuera de los parámetros del laberinto\n");
+        return Err(io::Error::new(io::ErrorKind::Other, "Fuera de los parámetros del laberinto"));
     }
 
     let objeto = &laberinto.grid[y][x].objeto;
@@ -95,9 +99,10 @@ pub fn detonar_bomba(laberinto: &mut Laberinto, x: usize, y: usize) {
         Objeto::Bomba(alcance) | Objeto::BombaTraspaso(alcance) => {
             detonar_bomba_recursive(laberinto, x, y, *alcance, es_bomba_de_traspaso);
         }
-        _ => return, // No es una bomba, no hacemos nada
+        _ => return Ok(()), // No es una bomba, no hacemos nada
     }
     laberinto.grid[y][x].objeto = Objeto::Vacio;
+    Ok(())
 }
 
 fn detonar_bomba_recursive(
@@ -255,18 +260,29 @@ pub fn guardar_laberinto_en_archivo(
     dir_salida: &str,
     archivo_entrada: &str,
 ) -> Result<(), io::Error> {
-    let archivo_salida = Path::new(dir_salida).join(archivo_entrada);
+    // Obtén el nombre del archivo de entrada
+    let archivo_salida = Path::new(archivo_entrada)
+        .file_name()
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "No se pudo obtener el nombre del archivo de entrada",
+            )
+        })
+        .and_then(|n| n.to_str().ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "No se pudo convertir el nombre del archivo a cadena",
+            )
+        }))?;
 
-    // Obtén la ruta del directorio de salida
-    let directorio_salida = archivo_salida.parent().ok_or_else(|| {
-        std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "No se pudo obtener el directorio de salida",
-        )
-    })?;
+    // Construye la ruta completa al archivo de salida
+    let ruta_salida = Path::new(dir_salida).join(archivo_salida);
 
     // Crea el directorio de salida si no existe
-    fs::create_dir_all(directorio_salida)?;
+    if let Some(dir) = ruta_salida.parent() {
+        fs::create_dir_all(dir)?;
+    }
 
     // Concatena las líneas en una cadena
     let mut contenido = String::new();
@@ -275,19 +291,19 @@ pub fn guardar_laberinto_en_archivo(
         for celda in fila {
             match &celda.objeto {
                 Objeto::Enemigo(vidas) => {
-                    contenido.push_str(&format!("F{} ", vidas));
+                    contenido.push_str(&format!("F{}", vidas));
                 }
                 Objeto::Bomba(alcance) => {
-                    contenido.push_str(&format!("B{} ", alcance));
+                    contenido.push_str(&format!("B{}", alcance));
                 }
                 Objeto::BombaTraspaso(alcance) => {
-                    contenido.push_str(&format!("S{}) ", alcance));
+                    contenido.push_str(&format!("S{}", alcance));
                 }
                 Objeto::Roca => {
-                    contenido.push_str("R ");
+                    contenido.push_str("R");
                 }
                 Objeto::Pared => {
-                    contenido.push_str("W ");
+                    contenido.push_str("W");
                 }
                 Objeto::Desvio(direccion) => {
                     let dir_str = match direccion {
@@ -296,18 +312,23 @@ pub fn guardar_laberinto_en_archivo(
                         Direccion::Arriba => "U",
                         Direccion::Abajo => "D",
                     };
-                    contenido.push_str(&format!("D{} ", dir_str));
+                    contenido.push_str(&format!("D{}", dir_str));
                 }
                 Objeto::Vacio => {
-                    contenido.push_str("_ ");
+                    contenido.push_str("_");
                 }
             }
+            if celda != &fila[laberinto.tamano - 1]{
+                contenido.push_str(" ");
+            }
         }
-        contenido.push('\n'); // Nueva línea para la siguiente fila
+        if fila != &laberinto.grid[laberinto.tamano -1]{
+            contenido.push('\n'); // Nueva línea para la siguiente fila
+        }
     }
 
     // Abre el archivo de salida para escritura, creándolo si no existe.
-    let mut archivo = match File::create(&archivo_salida) {
+    let mut archivo = match File::create(&ruta_salida) {
         Ok(file) => file,
         Err(e) => {
             // Si no se puede crear el archivo, intenta escribir el error en el archivo

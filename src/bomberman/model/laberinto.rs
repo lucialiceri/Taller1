@@ -4,6 +4,7 @@ use super::objeto::Objeto;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 
+
 /// Representa un laberinto compuesto por celdas con objetos.
 pub struct Laberinto {
     /// Tamaño del laberinto (número de filas o columnas).
@@ -27,7 +28,24 @@ impl Laberinto {
     /// let laberinto = Laberinto::cargar("laberinto.txt");
     /// ```
     pub fn cargar(path: &str) -> Result<Self, io::Error> {
-        let lineas = Self::leer_lineas(path)?;
+        // Obtén el directorio actual
+        let directorio_actual = std::env::current_dir()?;
+    
+        // Construye la ruta completa al archivo
+        let ruta_completa = directorio_actual.join(path);
+        
+        // Comprueba si el archivo existe
+        if !ruta_completa.is_file() {
+            return Err(io::Error::new(io::ErrorKind::NotFound, "El archivo no existe"));
+        }
+    
+        let ruta_completa_str = ruta_completa.to_str().ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "La ruta del archivo no es válida")
+        })?;
+        
+    
+        let lineas = Self::leer_lineas(ruta_completa_str)?;
+
         let mut laberinto = Laberinto {
             tamano: 0,
             grid: Vec::new(),
