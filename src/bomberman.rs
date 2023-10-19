@@ -80,14 +80,13 @@ fn obtener_direccion_del_desvio(celda: &Celda) -> Option<(i32, i32)> {
 /// Para verificar posibles errores, es importante verificar el estado del laberinto después
 /// de llamar a esta función.
 
-pub fn detonar_bomba(
-    laberinto: &mut Laberinto,
-    x: usize,
-    y: usize,
-) -> Result<(), io::Error> {
+pub fn detonar_bomba(laberinto: &mut Laberinto, x: usize, y: usize) -> Result<(), io::Error> {
     if x >= laberinto.tamano || y >= laberinto.tamano {
         println!("Fuera de los parámetros del laberinto\n");
-        return Err(io::Error::new(io::ErrorKind::Other, "Fuera de los parámetros del laberinto"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Fuera de los parámetros del laberinto",
+        ));
     }
 
     let objeto = &laberinto.grid[y][x].objeto;
@@ -269,12 +268,14 @@ pub fn guardar_laberinto_en_archivo(
                 "No se pudo obtener el nombre del archivo de entrada",
             )
         })
-        .and_then(|n| n.to_str().ok_or_else(|| {
-            std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "No se pudo convertir el nombre del archivo a cadena",
-            )
-        }))?;
+        .and_then(|n| {
+            n.to_str().ok_or_else(|| {
+                std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "No se pudo convertir el nombre del archivo a cadena",
+                )
+            })
+        })?;
 
     // Construye la ruta completa al archivo de salida
     let ruta_salida = Path::new(dir_salida).join(archivo_salida);
@@ -318,11 +319,11 @@ pub fn guardar_laberinto_en_archivo(
                     contenido.push_str("_");
                 }
             }
-            if celda != &fila[laberinto.tamano - 1]{
+            if celda != &fila[laberinto.tamano - 1] {
                 contenido.push_str(" ");
             }
         }
-        if fila != &laberinto.grid[laberinto.tamano -1]{
+        if fila != &laberinto.grid[laberinto.tamano - 1] {
             contenido.push('\n'); // Nueva línea para la siguiente fila
         }
     }
@@ -349,15 +350,50 @@ pub fn guardar_laberinto_en_archivo(
     Ok(())
 }
 
-pub fn escribir_error_en_archivo(archivo: &str, mensaje: &str) {
-    if let Ok(mut archivo_error) = File::create(archivo) {
+pub fn escribir_error_en_archivo(dir_salida: &str, archivo_entrada: &str, mensaje: &str) -> Result<(), io::Error> {
+    // Obtén el nombre del archivo de entrada
+    let archivo_salida = Path::new(archivo_entrada)
+        .file_name()
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "No se pudo obtener el nombre del archivo de entrada",
+            )
+        })
+        .and_then(|n| {
+            n.to_str().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::Other,
+                    "No se pudo convertir el nombre del archivo a cadena",
+                )
+            })
+        })?;
+
+    // Construye la ruta completa al archivo de salida
+    let ruta_salida = Path::new(dir_salida).join(archivo_salida);
+
+    // Crea el directorio de salida si no existe
+    if let Some(dir) = ruta_salida.parent() {
+        fs::create_dir_all(dir)?;
+    }
+
+    // Abre el archivo de salida para escritura, creándolo si no existe.
+    if let Ok(mut archivo_error) = File::create(&ruta_salida) {
         if let Err(e) = writeln!(archivo_error, "ERROR: {}", mensaje) {
             eprintln!("Error al escribir el mensaje de error en el archivo: {}", e);
+            return Err(e);
         }
     } else {
         eprintln!("Error al crear el archivo de error");
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "No se pudo abrir el archivo de error",
+        ));
     }
+
+    Ok(())
 }
+
 
 #[cfg(test)]
 mod tests {

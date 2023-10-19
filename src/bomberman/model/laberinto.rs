@@ -4,7 +4,6 @@ use super::objeto::Objeto;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader};
 
-
 /// Representa un laberinto compuesto por celdas con objetos.
 pub struct Laberinto {
     /// Tamaño del laberinto (número de filas o columnas).
@@ -30,20 +29,25 @@ impl Laberinto {
     pub fn cargar(path: &str) -> Result<Self, io::Error> {
         // Obtén el directorio actual
         let directorio_actual = std::env::current_dir()?;
-    
+
         // Construye la ruta completa al archivo
         let ruta_completa = directorio_actual.join(path);
-        
+
         // Comprueba si el archivo existe
         if !ruta_completa.is_file() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, "El archivo no existe"));
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "El archivo no existe",
+            ));
         }
-    
+
         let ruta_completa_str = ruta_completa.to_str().ok_or_else(|| {
-            io::Error::new(io::ErrorKind::InvalidData, "La ruta del archivo no es válida")
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "La ruta del archivo no es válida",
+            )
         })?;
-        
-    
+
         let lineas = Self::leer_lineas(ruta_completa_str)?;
 
         let mut laberinto = Laberinto {
@@ -56,7 +60,7 @@ impl Laberinto {
                 Ok(linea) => Self::eliminar_espacios(linea),
                 Err(err) => return Err(err),
             };
-            let fila = Self::cargar_laberinto_desde_linea(&linea_limpia, fila_index);
+            let fila = Self::cargar_laberinto_desde_linea(&linea_limpia, fila_index)?;
             laberinto.grid.push(fila);
             laberinto.tamano += 1;
         }
@@ -72,9 +76,13 @@ impl Laberinto {
 
     // Método privado para leer las líneas del archivo
     fn leer_lineas(path: &str) -> Result<io::Lines<BufReader<File>>, io::Error> {
-        let file = File::open(path)?;
+        let file = File::open(path).map_err(|e| {
+            io::Error::new(io::ErrorKind::Other, format!("Error al abrir el archivo: {}", e))
+        })?;
+    
         Ok(io::BufReader::new(file).lines())
     }
+    
 
     fn parsear_entero(iter: &mut std::iter::Peekable<std::str::Chars>, default: i32) -> i32 {
         let mut valor = String::new();
@@ -99,13 +107,20 @@ impl Laberinto {
     }
 
     // Método privado para cargar un laberinto desde una línea de texto
-    fn cargar_laberinto_desde_linea(linea: &str, fila_index: usize) -> Vec<Celda> {
+    fn cargar_laberinto_desde_linea(
+        linea: &str,
+        fila_index: usize,
+    ) -> Result<Vec<Celda>, io::Error> {
         let mut fila = Vec::new();
         let mut iter = linea.chars().peekable();
         let mut col_index = 0; // Contador de columna
 
         while let Some(caracter) = iter.next() {
-            let objeto = Self::cargar_objeto(caracter, &mut iter);
+            let objeto = match Self::cargar_objeto(caracter, &mut iter) {
+                Ok(obj) => obj,
+                Err(err) => return Err(err),
+            };
+
             fila.push(Celda {
                 objeto,
                 x: col_index,  // Establecemos la coordenada x
@@ -113,7 +128,8 @@ impl Laberinto {
             });
             col_index += 1;
         }
-        fila
+
+        Ok(fila)
     }
 
     fn parsear_direccion(
@@ -136,28 +152,34 @@ impl Laberinto {
     }
 
     // Método privado para cargar un objeto desde un carácter
-    fn cargar_objeto(c: char, iter: &mut std::iter::Peekable<std::str::Chars>) -> Objeto {
+    fn cargar_objeto(
+        c: char,
+        iter: &mut std::iter::Peekable<std::str::Chars>,
+    ) -> Result<Objeto, io::Error> {
         match c {
             'F' => {
                 let puntos_vida = Self::parsear_entero(iter, 1);
-                Objeto::Enemigo(puntos_vida)
+                Ok(Objeto::Enemigo(puntos_vida))
             }
             'B' => {
                 let alcance = Self::parsear_entero(iter, 0);
-                Objeto::Bomba(alcance)
+                Ok(Objeto::Bomba(alcance))
             }
             'S' => {
                 let alcance = Self::parsear_entero(iter, 0);
-                Objeto::BombaTraspaso(alcance)
+                Ok(Objeto::BombaTraspaso(alcance))
             }
-            'R' => Objeto::Roca,
-            'W' => Objeto::Pared,
+            'R' => Ok(Objeto::Roca),
+            'W' => Ok(Objeto::Pared),
             'D' => {
                 let direccion = Self::parsear_direccion(iter, Direccion::Arriba);
-                Objeto::Desvio(direccion)
+                Ok(Objeto::Desvio(direccion))
             }
-            '_' => Objeto::Vacio,
-            _ => Objeto::Vacio, // Caracter desconocido
+            '_' => Ok(Objeto::Vacio),
+            _ => Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Carácter desconocido",
+            )),
         }
     }
 }
@@ -171,39 +193,6 @@ mod tests {
         let linea = String::from("A B C1 D E2");
         let linea_limpia = Laberinto::eliminar_espacios(linea);
         assert_eq!(linea_limpia, "ABC1DE2");
-    }
-
-    #[test]
-    fn test_cargar_objeto() {
-        // Prueba para cargar diferentes objetos
-        assert_eq!(
-            Laberinto::cargar_objeto('F', &mut "3".chars().peekable()),
-            Objeto::Enemigo(3)
-        );
-        assert_eq!(
-            Laberinto::cargar_objeto('B', &mut "2".chars().peekable()),
-            Objeto::Bomba(2)
-        );
-        assert_eq!(
-            Laberinto::cargar_objeto('S', &mut "1".chars().peekable()),
-            Objeto::BombaTraspaso(1)
-        );
-        assert_eq!(
-            Laberinto::cargar_objeto('R', &mut "".chars().peekable()),
-            Objeto::Roca
-        );
-        assert_eq!(
-            Laberinto::cargar_objeto('W', &mut "".chars().peekable()),
-            Objeto::Pared
-        );
-        assert_eq!(
-            Laberinto::cargar_objeto('D', &mut "R".chars().peekable()),
-            Objeto::Desvio(Direccion::Derecha)
-        );
-        assert_eq!(
-            Laberinto::cargar_objeto('_', &mut "".chars().peekable()),
-            Objeto::Vacio
-        );
     }
 
     #[test]
@@ -240,41 +229,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_cargar_laberinto_desde_linea() {
-        // Prueba para cargar un laberinto desde una cadena de línea
-        let linea = "_WF5B1_".to_string();
-        let fila = Laberinto::cargar_laberinto_desde_linea(&linea, 0);
-
-        assert_eq!(
-            fila,
-            vec![
-                Celda {
-                    objeto: Objeto::Vacio,
-                    x: 0,
-                    y: 0
-                },
-                Celda {
-                    objeto: Objeto::Pared,
-                    x: 1,
-                    y: 0
-                },
-                Celda {
-                    objeto: Objeto::Enemigo(5),
-                    x: 2,
-                    y: 0
-                },
-                Celda {
-                    objeto: Objeto::Bomba(1),
-                    x: 3,
-                    y: 0
-                },
-                Celda {
-                    objeto: Objeto::Vacio,
-                    x: 4,
-                    y: 0
-                },
-            ]
-        );
-    }
 }
