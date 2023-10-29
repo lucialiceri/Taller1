@@ -301,10 +301,10 @@ pub fn guardar_laberinto_en_archivo(
                     contenido.push_str(&format!("S{}", alcance));
                 }
                 Objeto::Roca => {
-                    contenido.push_str("R");
+                    contenido.push('R');
                 }
                 Objeto::Pared => {
-                    contenido.push_str("W");
+                    contenido.push('W');
                 }
                 Objeto::Desvio(direccion) => {
                     let dir_str = match direccion {
@@ -316,11 +316,11 @@ pub fn guardar_laberinto_en_archivo(
                     contenido.push_str(&format!("D{}", dir_str));
                 }
                 Objeto::Vacio => {
-                    contenido.push_str("_");
+                    contenido.push('_');
                 }
             }
             if celda != &fila[laberinto.tamano - 1] {
-                contenido.push_str(" ");
+                contenido.push(' ');
             }
         }
         if fila != &laberinto.grid[laberinto.tamano - 1] {
@@ -333,7 +333,7 @@ pub fn guardar_laberinto_en_archivo(
         Ok(file) => file,
         Err(e) => {
             // Si no se puede crear el archivo, intenta escribir el error en el archivo
-            let mut archivo = File::create(&archivo_salida)?;
+            let mut archivo = File::create(archivo_salida)?;
             archivo.write_all(format!("ERROR: {}", e).as_bytes())?;
             return Err(e);
         }
@@ -342,7 +342,7 @@ pub fn guardar_laberinto_en_archivo(
     // Intenta escribir el contenido en el archivo
     if let Err(e) = archivo.write_all(contenido.as_bytes()) {
         // Si ocurre un error durante la escritura, intenta escribir el error en el archivo
-        let mut archivo = File::create(&archivo_salida)?;
+        let mut archivo = File::create(archivo_salida)?;
         archivo.write_all(format!("ERROR: {}", e).as_bytes())?;
         return Err(e);
     }

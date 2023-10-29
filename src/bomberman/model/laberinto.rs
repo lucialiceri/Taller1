@@ -22,7 +22,6 @@ impl Laberinto {
     /// # Ejemplo
     ///
     /// ```
-    /// use mi_libreria::Laberinto;
     ///
     /// let laberinto = Laberinto::cargar("laberinto.txt");
     /// ```
